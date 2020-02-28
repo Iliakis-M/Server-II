@@ -3,14 +3,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const http = require("http");
 const fs = require("fs-extra");
 const path = require("path");
+const events_1 = require("events");
 var Classes;
 (function (Classes) {
     let Errors;
     (function (Errors) {
         Errors.EBADPATH = new URIError("Bad Path.");
+        Errors.EBADROOT = new URIError("Bad Root.");
     })(Errors = Classes.Errors || (Classes.Errors = {})); //Errors
+    /**
+     * Middleware class.
+     *
+     * @author V. H.
+     * @date 2019-05-12
+     * @export
+     * @class Middleware
+     */
     class Middleware {
         constructor(name, befores = [], afters = [], body, _fromFile = false) {
+            this.befores = [];
+            this.afters = [];
             this._fromFile = false;
             this._idx = -1;
             this._before = 0;
@@ -27,13 +39,23 @@ var Classes;
         } //body
     } //Middleware
     Classes.Middleware = Middleware;
-    class Server extends require("events").EventEmitter {
+    /**
+     * Starting Class.
+     *
+     * @author V. H.
+     * @date 2019-05-12
+     * @export
+     * @class Server
+     * @extends {require("events").EventEmitter}
+     */
+    class Server extends events_1.EventEmitter {
         constructor(opts = Server.defaultOpts) {
             super();
             this.mwrs = [];
             this.logs = "";
             this._debuglog = "";
             this._reqcntr = 0;
+            this.data = {};
             this.opts = Object.assign({}, Server.defaultOpts);
             this.opts = Object.assign(this.opts, opts);
             if (this.opts.allowmw) {
@@ -91,7 +113,7 @@ var Classes;
             return fs.readdir(from, (err, files) => {
                 if (!err) {
                     for (let file of files) {
-                        let name = ".." + path.sep + ".." + path.sep + path.join(this.opts.serveDir, this.opts.mwdir, file);
+                        let name = path.join(this.opts.serveDir, this.opts.mwdir, file);
                         delete require.cache[require.resolve(name)];
                         if (file.endsWith(".js"))
                             this.mwrs.push(require(name));
@@ -158,9 +180,17 @@ var Classes;
             this.emit("_debug", ...msg);
             return this;
         } //_debug
+        //@Override
+        on(event, listener) {
+            return super.on(event, listener);
+        } //on
+        //@Override
+        once(event, listener) {
+            return super.once(event, listener);
+        } //once
     } //Server
     Server.defaultOpts = {
-        serveDir: "__Server",
+        serveDir: path.resolve("__Server"),
         index: /^index\.html?x?$/i,
         root: '/',
         mwbuilt: `..${path.sep}builtin${path.sep}middlewares`,
@@ -184,6 +214,7 @@ var Classes;
             ".jpeg": "image/jpeg",
             ".svg": "image/svg+xml",
             ".png": "image/png",
+            ".bmp": "image/bmp",
             ".ico": "image/x-icon",
             ".js": "application/javascript",
             ".jsx": "application/javascript",

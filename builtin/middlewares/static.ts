@@ -8,8 +8,8 @@ import Classes from "../../lib/Classes";
 const Classes = module.parent.exports.Classes;
 
 const pstat: Function = promisify(fs.stat),
-	preaddir: Function = promisify(fs.readdir),
-	preadFile: Function = promisify(fs.readFile);
+	preadFile: Function = promisify(fs.readFile),
+	cache: Map<string, string> = new Map();
 
 module.exports = {
 	name: "static",
@@ -24,19 +24,20 @@ module.exports = {
 		 */
 		
 		let uri = new URL(`http://127.0.0.1:${event.server.opts.port}${req.url}`),
-			pth: string = uri.pathname.replace(new RegExp("^." + event.server.opts.root, "i"), ''),  //localize url
+			pth: string = uri.pathname.replace(new RegExp('^' + event.server.opts.root, "i"), ''),  //localize url
 			targ: string = path.join(event.server.opts.serveDir, event.server.opts.public, pth);  //absolute
 		
 		event.server._debug(event.reqcntr, "(STATIC.TS) REQ:", uri.href);
 		
 		if (!res.finished) {
 			try {
+				if (!uri.pathname.startsWith(event.server.opts.root)) throw Classes.Errors.EBADROOT;
 				if (event.carriage._global.patherr) throw Classes.Errors.EBADPATH;
 				let stats: fs.Stats = await pstat(targ);
 				
 				if (stats.isFile()) {
 					event.server._debug(event.reqcntr, "(STATIC.TS) VALID");
-					res.writeHead(200, event.server.opts.http.STATUS_CODES[200], { "Content-Type": event.server.opts.contentMappings[path.extname(targ)] });
+					res.setHeader("Content-Type", event.server.opts.contentMappings[path.extname(targ)]);
 					res.end(await serve(targ, event));
 				} else {
 					event.fncntr -= 2;
@@ -58,8 +59,18 @@ module.exports = {
 
 async function serve(file: string, event: Classes.evt, preproc: boolean = true): Promise<string | Buffer> {
 	try {
-		let data: string = (await preadFile(file)).toString(),
+		let data: string,
 			prep: RegExp = /\.((html?|css)x|xjs)$/i;
+		
+		if (cache.has(file)) {
+			data = cache.get(file);
+			preadFile(file).then((err: Error, buff: Buffer) => {
+				if (!err) cache.set(file, buff.toString());
+			});
+		} else {
+			data = (await preadFile(file)).toString();
+			cache.set(file, data);
+		}
 		
 		if (prep.test(file)) {
 			data = data.replace(event.server.opts.builtmpl, (m, p) => eval(p));

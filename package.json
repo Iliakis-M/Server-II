@@ -1,24 +1,26 @@
 {
   "name": "vale-server-ii",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "A Server framework",
   "main": "dist/lib/server.js",
   "author": "V. H.",
   "devDependencies": {
-    "@types/fs-extra": "^5.0.5",
+    "@types/fs-extra": "^5.1.0",
     "@types/node": "^8.10.48",
-    "typescript": "3.4.0-rc"
+    "tslib": "^1.9.3",
+    "typescript": "^3.4.5"
   },
   "directories": {
     "lib": "lib"
   },
-  "typings": "lib/typings",
+  "typings": "lib/typings/lib/server.d.ts",
   "dependencies": {
     "fs-extra": "^7.0.1"
   },
   "scripts": {
     "test": "node test/index.js || npm test",
-    "build": "tsc -w"
+    "build": "tsc -w",
+    "debug": "node --inspect-brk=9229 test/index.js || npm debug"
   },
   "keywords": [
     "server",

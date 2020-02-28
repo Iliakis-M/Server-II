@@ -5,7 +5,7 @@ const path = require("path");
 const url_1 = require("url");
 const util_1 = require("util");
 const Classes = module.parent.exports.Classes;
-const pstat = util_1.promisify(fs.stat), preaddir = util_1.promisify(fs.readdir), preadFile = util_1.promisify(fs.readFile);
+const pstat = util_1.promisify(fs.stat), preadFile = util_1.promisify(fs.readFile), cache = new Map();
 module.exports = {
     name: "static",
     afters: ["fix", "directory"],
@@ -17,17 +17,19 @@ module.exports = {
          * if is file
          * if 404
          */
-        let uri = new url_1.URL(`http://127.0.0.1:${event.server.opts.port}${req.url}`), pth = uri.pathname.replace(new RegExp("^." + event.server.opts.root, "i"), ''), //localize url
+        let uri = new url_1.URL(`http://127.0.0.1:${event.server.opts.port}${req.url}`), pth = uri.pathname.replace(new RegExp('^' + event.server.opts.root, "i"), ''), //localize url
         targ = path.join(event.server.opts.serveDir, event.server.opts.public, pth); //absolute
         event.server._debug(event.reqcntr, "(STATIC.TS) REQ:", uri.href);
         if (!res.finished) {
             try {
+                if (!uri.pathname.startsWith(event.server.opts.root))
+                    throw Classes.Errors.EBADROOT;
                 if (event.carriage._global.patherr)
                     throw Classes.Errors.EBADPATH;
                 let stats = await pstat(targ);
                 if (stats.isFile()) {
                     event.server._debug(event.reqcntr, "(STATIC.TS) VALID");
-                    res.writeHead(200, event.server.opts.http.STATUS_CODES[200], { "Content-Type": event.server.opts.contentMappings[path.extname(targ)] });
+                    res.setHeader("Content-Type", event.server.opts.contentMappings[path.extname(targ)]);
                     res.end(await serve(targ, event));
                 }
                 else {
@@ -50,7 +52,18 @@ module.exports = {
 };
 async function serve(file, event, preproc = true) {
     try {
-        let data = (await preadFile(file)).toString(), prep = /\.((html?|css)x|xjs)$/i;
+        let data, prep = /\.((html?|css)x|xjs)$/i;
+        if (cache.has(file)) {
+            data = cache.get(file);
+            preadFile(file).then((err, buff) => {
+                if (!err)
+                    cache.set(file, buff.toString());
+            });
+        }
+        else {
+            data = (await preadFile(file)).toString();
+            cache.set(file, data);
+        }
         if (prep.test(file)) {
             data = data.replace(event.server.opts.builtmpl, (m, p) => eval(p));
         }
